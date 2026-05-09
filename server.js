@@ -89,60 +89,127 @@ app.get("/api/blackjack", async (req, res) => {
   const user = req.query.user?.toLowerCase();
   const bet = parseInt(req.query.amount);
 
-  if (!bet || bet <= 0) return res.send("❌ !blackjack <amount>");
-
   const { data } = await supabase
     .from("users")
     .select("*")
     .eq("username", user)
     .maybeSingle();
 
-  if (!data) return res.send(`@${user} not registered`);
-  if (data.balance < bet) return res.send("💀 not enough coins");
+  if (!data) return res.send("not registered");
+  if (data.balance < bet) return res.send("not enough coins");
 
-  // 🃏 helper
   const draw = () => Math.floor(Math.random() * 11) + 1;
 
-  // PLAYER HAND
-  let player = draw() + draw();
+  const player = [draw(), draw()];
+  const dealer = [draw(), draw()];
 
-  // SIMPLE AI DECISION (auto hit under 16)
-  while (player < 16) {
-    player += draw();
+  await supabase.from("blackjack_games").upsert({
+    username: user,
+    player_hand: player,
+    dealer_hand: dealer,
+    bet,
+    status: "active",
+    updated_at: Date.now()
+  });
+
+  res.send(
+    `🃏 YOU: ${player.join(",")} (${player.reduce((a,b)=>a+b)}) | DEALER: ${dealer[0]}, ? | type !hit or !stand`
+  );
+});
+
+
+
+app.get("/api/hit", async (req, res) => {
+  const user = req.query.user?.toLowerCase();
+  const draw = () => Math.floor(Math.random() * 11) + 1;
+
+  const { data: game } = await supabase
+    .from("blackjack_games")
+    .select("*")
+    .eq("username", user)
+    .maybeSingle();
+
+  if (!game || game.status !== "active") {
+    return res.send("no active game");
   }
 
-  // DEALER HAND
-  let dealer = draw() + draw();
-  while (dealer < 17) {
-    dealer += draw();
+  game.player_hand.push(draw());
+
+  const sum = game.player_hand.reduce((a,b)=>a+b);
+
+  if (sum > 21) {
+    await supabase.from("blackjack_games")
+      .update({ status: "bust" })
+      .eq("username", user);
+
+    return res.send(`💀 BUST ${sum} — you lose`);
   }
+
+  await supabase.from("blackjack_games")
+    .update({ player_hand: game.player_hand })
+    .eq("username", user);
+
+  res.send(`🃏 YOU: ${game.player_hand.join(",")} (${sum}) | !hit or !stand`);
+});
+
+
+
+app.get("/api/stand", async (req, res) => {
+  const user = req.query.user?.toLowerCase();
+  const draw = () => Math.floor(Math.random() * 11) + 1;
+
+  const { data: game } = await supabase
+    .from("blackjack_games")
+    .select("*")
+    .eq("username", user)
+    .maybeSingle();
+
+  if (!game || game.status !== "active") {
+    return res.send("no active game");
+  }
+
+  let dealer = [...game.dealer_hand];
+
+  while (dealer.reduce((a,b)=>a+b) < 17) {
+    dealer.push(draw());
+  }
+
+  const playerSum = game.player_hand.reduce((a,b)=>a+b);
+  const dealerSum = dealer.reduce((a,b)=>a+b);
+
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", user)
+    .maybeSingle();
 
   let result;
-  let change;
+  let change = 0;
 
-  if (player > 21) {
-    result = "bust";
-    change = -bet;
-  } else if (dealer > 21 || player > dealer) {
-    result = "win";
-    change = bet;
-  } else if (player === dealer) {
-    result = "draw";
-    change = 0;
+  if (dealerSum > 21 || playerSum > dealerSum) {
+    result = "WIN";
+    change = game.bet;
+  } else if (playerSum === dealerSum) {
+    result = "DRAW";
   } else {
-    result = "lose";
-    change = -bet;
+    result = "LOSE";
+    change = -game.bet;
   }
 
-  await supabase
-    .from("users")
-    .update({ balance: data.balance + change })
+  await supabase.from("users")
+    .update({ balance: userRow.balance + change })
+    .eq("username", user);
+
+  await supabase.from("blackjack_games")
+    .update({ status: "finished" })
     .eq("username", user);
 
   res.send(
-    `🃏 ${user} | You: ${player} vs Dealer: ${dealer} → ${result.toUpperCase()} ${change > 0 ? "+" + change : change}`
+    `🃏 YOU: ${playerSum} | DEALER: ${dealerSum} → ${result} ${change > 0 ? "+"+change : change}`
   );
 });
+
+
 
 // ================= GIVE =================
 app.get("/api/give", async (req, res) => {
@@ -198,9 +265,10 @@ app.get("/api/leaderboard", async (req, res) => {
 // ================= HELP =================
 app.get("/api/help", (req, res) => {
   res.send(
-`🎰 GAMBLE BOT HELP ┃ 👤 !register ┃ 💰 !balance ┃ 🎁 !daily ┃ 🎲 !gamble <amount> [safe/balanced/greedy] ┃ 🃏 !blackjack <amount> ┃ 💸 !give <user> <amount> ┃ 🏆 !leaderboard`
+`🎰 GAMBLE BOT HELP ┃ 👤 !register ┃ 💰 !balance ┃ 🎁 !daily ┃ 🎲 !gamble <amount> [safe/balanced/greedy] ┃ 🃏 !blackjack <amount> ┃ ➕ !hit ┃ 🛑 !stand ┃ 💸 !give <user> <amount> ┃ 🏆 !leaderboard`
   );
 });
+
 
 // ================= START =================
 const PORT = process.env.PORT || 3000;
