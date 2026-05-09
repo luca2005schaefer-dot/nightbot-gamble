@@ -9,7 +9,6 @@ const supabase = createClient(
   "https://eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsc2ZqcWFrdHV0Y293eWJpYmZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMTIyNzEsImV4cCI6MjA5Mzg4ODI3MX0.4e_9x4ymuIvWXiYXzQD2u8hjZS1XYpjyYxG_NF28Jtk.supabase.co"
 );
 
-// helper
 const norm = (u) => (u || "").toLowerCase();
 
 // ================= REGISTER =================
@@ -25,15 +24,16 @@ app.get("/api/register", async (req, res) => {
   if (data) return res.send(`@${user} already registered`);
 
   const { error } = await supabase.from("users").insert([
-    { username: user, balance: 100 }
+    {
+      username: user,
+      balance: 100,
+      last_daily: 0
+    }
   ]);
 
-  if (error) {
-    console.log(error);
-    return res.send("❌ register failed");
-  }
+  if (error) return res.send("register failed: " + error.message);
 
-  res.send(`@${user} registered with 100 coins 🎉`);
+  res.send(`@${user} registered 🎉`);
 });
 
 // ================= BALANCE =================
@@ -51,9 +51,11 @@ app.get("/api/balance", async (req, res) => {
   res.send(`@${user} has ${data.balance} coins 💰`);
 });
 
-// ================= DAILY =================
+// ================= DAILY (24H COOLDOWN) =================
 app.get("/api/daily", async (req, res) => {
   const user = norm(req.query.user);
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
 
   const { data } = await supabase
     .from("users")
@@ -63,14 +65,23 @@ app.get("/api/daily", async (req, res) => {
 
   if (!data) return res.send(`@${user} not registered`);
 
+  if (now - data.last_daily < DAY) {
+    const left = DAY - (now - data.last_daily);
+    const hours = Math.ceil(left / 3600000);
+    return res.send(`⏳ try again in ${hours}h`);
+  }
+
   const reward = 200;
 
   await supabase
     .from("users")
-    .update({ balance: data.balance + reward })
+    .update({
+      balance: data.balance + reward,
+      last_daily: now
+    })
     .eq("username", user);
 
-  res.send(`@${user} claimed +${reward} coins 🎁`);
+  res.send(`🎁 @${user} got +${reward}`);
 });
 
 // ================= GAMBLE =================
@@ -86,8 +97,8 @@ app.get("/api/gamble", async (req, res) => {
     .eq("username", user)
     .maybeSingle();
 
-  if (!data) return res.send(`@${user} not registered`);
-  if (data.balance < amount) return res.send(`not enough coins`);
+  if (!data) return res.send("not registered");
+  if (data.balance < amount) return res.send("not enough coins");
 
   const win = Math.random() < 0.5;
 
@@ -101,8 +112,8 @@ app.get("/api/gamble", async (req, res) => {
     .eq("username", user);
 
   res.send(win
-    ? `🎉 @${user} WON +${amount}`
-    : `💀 @${user} LOST -${amount}`
+    ? `🎉 WIN +${amount}`
+    : `💀 LOSE -${amount}`
   );
 });
 
@@ -129,13 +140,13 @@ app.get("/api/give", async (req, res) => {
   if (!sender || !receiver) return res.send("user not found");
   if (sender.balance < amount) return res.send("not enough coins");
 
-  await supabase.from("users").update({
-    balance: sender.balance - amount
-  }).eq("username", from);
+  await supabase.from("users")
+    .update({ balance: sender.balance - amount })
+    .eq("username", from);
 
-  await supabase.from("users").update({
-    balance: receiver.balance + amount
-  }).eq("username", to);
+  await supabase.from("users")
+    .update({ balance: receiver.balance + amount })
+    .eq("username", to);
 
   res.send(`💸 ${from} gave ${amount} to ${to}`);
 });
@@ -148,7 +159,7 @@ app.get("/api/leaderboard", async (req, res) => {
     .order("balance", { ascending: false })
     .limit(5);
 
-  if (!data || data.length === 0) return res.send("no players");
+  if (!data?.length) return res.send("no players");
 
   const msg = data
     .map((u, i) => `${i + 1}. ${u.username} - ${u.balance}`)
@@ -163,7 +174,7 @@ app.get("/api/help", (req, res) => {
 `🎰 COMMANDS:
 !register
 !balance
-!daily
+!daily (24h)
 !gamble <amount>
 !give <user> <amount>
 !leaderboard`
@@ -173,3 +184,4 @@ app.get("/api/help", (req, res) => {
 // ================= START =================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("running"));
+
