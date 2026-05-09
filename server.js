@@ -85,12 +85,11 @@ app.get("/api/daily", async (req, res) => {
 });
 
 // ================= GAMBLE =================
-app.get("/api/gamble", async (req, res) => {
+app.get("/api/blackjack", async (req, res) => {
   const user = req.query.user?.toLowerCase();
-  const amount = parseInt(req.query.amount);
-  const mode = (req.query.mode || "medium").toLowerCase();
+  const bet = parseInt(req.query.amount);
 
-  if (!amount || amount <= 0) return res.send("❌ invalid amount");
+  if (!bet || bet <= 0) return res.send("❌ !blackjack <amount>");
 
   const { data } = await supabase
     .from("users")
@@ -99,41 +98,49 @@ app.get("/api/gamble", async (req, res) => {
     .maybeSingle();
 
   if (!data) return res.send(`@${user} not registered`);
-  if (data.balance < amount) return res.send("❌ not enough coins");
+  if (data.balance < bet) return res.send("💀 not enough coins");
 
-  // 🎯 Risk system (NOT pure RNG anymore)
-  let winChance, multiplier;
+  // 🃏 helper
+  const draw = () => Math.floor(Math.random() * 11) + 1;
 
-  if (mode === "low") {
-    winChance = 0.7;
-    multiplier = 1.3;
-  } else if (mode === "high") {
-    winChance = 0.35;
-    multiplier = 2.2;
-  } else {
-    winChance = 0.5;
-    multiplier = 1.7;
+  // PLAYER HAND
+  let player = draw() + draw();
+
+  // SIMPLE AI DECISION (auto hit under 16)
+  while (player < 16) {
+    player += draw();
   }
 
-  const win = Math.random() < winChance;
+  // DEALER HAND
+  let dealer = draw() + draw();
+  while (dealer < 17) {
+    dealer += draw();
+  }
 
-  let newBalance;
+  let result;
+  let change;
 
-  if (win) {
-    newBalance = data.balance + Math.floor(amount * (multiplier - 1));
+  if (player > 21) {
+    result = "bust";
+    change = -bet;
+  } else if (dealer > 21 || player > dealer) {
+    result = "win";
+    change = bet;
+  } else if (player === dealer) {
+    result = "draw";
+    change = 0;
   } else {
-    newBalance = data.balance - amount;
+    result = "lose";
+    change = -bet;
   }
 
   await supabase
     .from("users")
-    .update({ balance: newBalance })
+    .update({ balance: data.balance + change })
     .eq("username", user);
 
   res.send(
-    win
-      ? `🎉 @${user} WON (${mode}) +${Math.floor(amount * (multiplier - 1))}`
-      : `💀 @${user} LOST (${mode}) -${amount}`
+    `🃏 ${user} | You: ${player} vs Dealer: ${dealer} → ${result.toUpperCase()} ${change > 0 ? "+" + change : change}`
   );
 });
 
@@ -191,24 +198,7 @@ app.get("/api/leaderboard", async (req, res) => {
 // ================= HELP =================
 app.get("/api/help", (req, res) => {
   res.send(
-`🎰 GAMBLE BOT HELP 🎰
-
-💰 ECONOMY
-• !register → start playing
-• !balance → check coins
-• !daily → claim 24h reward
-
-🎲 GAMBLING
-• !gamble <amount> low
-• !gamble <amount> medium
-• !gamble <amount> high
-
-💸 SOCIAL
-• !give <user> <amount> → send coins
-• !leaderboard → top players
-
-📌 TIP
-Low = safe 🎯 | High = risky 💀`
+`🎰 GAMBLE BOT HELP ┃ 👤 !register ┃ 💰 !balance ┃ 🎁 !daily ┃ 🎲 !gamble <amount> [safe/balanced/greedy] ┃ 🃏 !blackjack <amount> ┃ 💸 !give <user> <amount> ┃ 🏆 !leaderboard`
   );
 });
 
