@@ -6,7 +6,7 @@ const app = express();
 // ================= SUPABASE =================
 const supabase = createClient(
   "https://alsfjqaktutcowybibfu.supabase.co",
-  "YOUR_ANON_KEY"
+  "https://eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsc2ZqcWFrdHV0Y293eWJpYmZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMTIyNzEsImV4cCI6MjA5Mzg4ODI3MX0.4e_9x4ymuIvWXiYXzQD2u8hjZS1XYpjyYxG_NF28Jtk.supabase.co"
 );
 
 // helper
