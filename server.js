@@ -265,7 +265,7 @@ app.get("/api/leaderboard", async (req, res) => {
 // ================= HELP =================
 app.get("/api/help", (req, res) => {
   res.send(
-`🎰 GAMBLE BOT HELP ┃ 👤 !register ┃ 💰 !balance ┃ 🎁 !daily ┃ 🎲 !gamble <amount> [safe/balanced/greedy] ┃ 🃏 !blackjack <amount> ┃ ➕ !hit ┃ 🛑 !stand ┃ 💸 !give <user> <amount> ┃ 🏆 !leaderboard`
+`🎰 GAMBLE BOT HELP ┃ 👤 !register ┃ 💰 !balance ┃ 🎁 !daily ┃ 🃏 !blackjack <amount> ┃ ➕ !hit ┃ 🛑 !stand ┃ 💸 !give <user> <amount> ┃ 🏆 !leaderboard`
   );
 });
 
