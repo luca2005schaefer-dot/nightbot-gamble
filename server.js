@@ -89,31 +89,32 @@ app.get("/api/blackjack", async (req, res) => {
   const user = req.query.user?.toLowerCase();
   const bet = parseInt(req.query.amount);
 
-  const { data } = await supabase
+  if (!bet || bet <= 0) return res.send("❌ !blackjack <amount>");
+
+  const { data: player } = await supabase
     .from("users")
     .select("*")
     .eq("username", user)
     .maybeSingle();
 
-  if (!data) return res.send("not registered");
-  if (data.balance < bet) return res.send("not enough coins");
+  if (!player) return res.send("❌ not registered");
+  if (player.balance < bet) return res.send("💀 not enough coins");
 
   const draw = () => Math.floor(Math.random() * 11) + 1;
 
-  const player = [draw(), draw()];
-  const dealer = [draw(), draw()];
+  const playerHand = [draw(), draw()];
+  const dealerHand = [draw(), draw()];
 
   await supabase.from("blackjack_games").upsert({
     username: user,
-    player_hand: player,
-    dealer_hand: dealer,
+    player_hand: playerHand,
+    dealer_hand: dealerHand,
     bet,
-    status: "active",
-    updated_at: Date.now()
+    status: "active"
   });
 
   res.send(
-    `🃏 YOU: ${player.join(",")} (${player.reduce((a,b)=>a+b)}) | DEALER: ${dealer[0]}, ? | type !hit or !stand`
+    `🃏 YOU: ${playerHand.join(",")} (${playerHand.reduce((a,b)=>a+b)}) | DEALER: ${dealerHand[0]}, ? | !hit or !stand`
   );
 });
 
@@ -121,6 +122,7 @@ app.get("/api/blackjack", async (req, res) => {
 
 app.get("/api/hit", async (req, res) => {
   const user = req.query.user?.toLowerCase();
+
   const draw = () => Math.floor(Math.random() * 11) + 1;
 
   const { data: game } = await supabase
@@ -129,23 +131,23 @@ app.get("/api/hit", async (req, res) => {
     .eq("username", user)
     .maybeSingle();
 
-  if (!game || game.status !== "active") {
-    return res.send("no active game");
-  }
+  if (!game || game.status !== "active") return res.send("no active game");
 
   game.player_hand.push(draw());
 
   const sum = game.player_hand.reduce((a,b)=>a+b);
 
   if (sum > 21) {
-    await supabase.from("blackjack_games")
-      .update({ status: "bust" })
+    await supabase
+      .from("blackjack_games")
+      .update({ status: "lost" })
       .eq("username", user);
 
-    return res.send(`💀 BUST ${sum} — you lose`);
+    return res.send(`💀 BUST (${sum}) — you lost ${game.bet} coins`);
   }
 
-  await supabase.from("blackjack_games")
+  await supabase
+    .from("blackjack_games")
     .update({ player_hand: game.player_hand })
     .eq("username", user);
 
@@ -153,9 +155,9 @@ app.get("/api/hit", async (req, res) => {
 });
 
 
-
 app.get("/api/stand", async (req, res) => {
   const user = req.query.user?.toLowerCase();
+
   const draw = () => Math.floor(Math.random() * 11) + 1;
 
   const { data: game } = await supabase
@@ -164,9 +166,7 @@ app.get("/api/stand", async (req, res) => {
     .eq("username", user)
     .maybeSingle();
 
-  if (!game || game.status !== "active") {
-    return res.send("no active game");
-  }
+  if (!game || game.status !== "active") return res.send("no active game");
 
   let dealer = [...game.dealer_hand];
 
@@ -186,9 +186,12 @@ app.get("/api/stand", async (req, res) => {
   let result;
   let change = 0;
 
-  if (dealerSum > 21 || playerSum > dealerSum) {
+  if (playerSum > 21) {
+    result = "BUST";
+    change = -game.bet;
+  } else if (dealerSum > 21 || playerSum > dealerSum) {
     result = "WIN";
-    change = game.bet;
+    change = game.bet; // 💰 COINS WIN BACK
   } else if (playerSum === dealerSum) {
     result = "DRAW";
   } else {
@@ -196,16 +199,18 @@ app.get("/api/stand", async (req, res) => {
     change = -game.bet;
   }
 
-  await supabase.from("users")
+  await supabase
+    .from("users")
     .update({ balance: userRow.balance + change })
     .eq("username", user);
 
-  await supabase.from("blackjack_games")
+  await supabase
+    .from("blackjack_games")
     .update({ status: "finished" })
     .eq("username", user);
 
   res.send(
-    `🃏 YOU: ${playerSum} | DEALER: ${dealerSum} → ${result} ${change > 0 ? "+"+change : change}`
+    `🃏 YOU: ${playerSum} | DEALER: ${dealerSum} → ${result} (${change >= 0 ? "+" : ""}${change} coins)`
   );
 });
 
