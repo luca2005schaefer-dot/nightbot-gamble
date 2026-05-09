@@ -191,13 +191,24 @@ app.get("/api/leaderboard", async (req, res) => {
 // ================= HELP =================
 app.get("/api/help", (req, res) => {
   res.send(
-`🎰 COMMANDS:
-!register
-!balance
-!daily (24h)
-!gamble <amount>
-!give <user> <amount>
-!leaderboard`
+`🎰 GAMBLE BOT HELP 🎰
+
+💰 ECONOMY
+• !register → start playing
+• !balance → check coins
+• !daily → claim 24h reward
+
+🎲 GAMBLING
+• !gamble <amount> low
+• !gamble <amount> medium
+• !gamble <amount> high
+
+💸 SOCIAL
+• !give <user> <amount> → send coins
+• !leaderboard → top players
+
+📌 TIP
+Low = safe 🎯 | High = risky 💀`
   );
 });
 
