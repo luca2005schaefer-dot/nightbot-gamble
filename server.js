@@ -48,3 +48,11 @@ app.get("/api/balance", (req,res)=>{
 app.listen(3000, ()=>{
  console.log("Server running on port 3000");
 });
+
+
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(
+  "YOUR_SUPABASE_URL",
+  "YOUR_SUPABASE_ANON_KEY"
+);
