@@ -3,10 +3,10 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 
-// Supabase setup
+// Supabase setup (CORRECT)
 const supabase = createClient(
-  "sb_publishable_EC2EpGymtogKN58a2i1r7A_MbUSeZia",
-  "sb_secret__4H-BeuRwCY7t_z8kyprHA_uFtyZHiC"
+  "https://alsfjqaktutcowybibfu.supabase.co",
+  "https://sb_secret_lZkQkxrTT_Q-GfiNB2_Fwg_Zi_PqAph.supabase.co"
 );
 
 // ------------------- REGISTER -------------------
