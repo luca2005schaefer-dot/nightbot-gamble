@@ -86,10 +86,11 @@ app.get("/api/daily", async (req, res) => {
 
 // ================= GAMBLE =================
 app.get("/api/gamble", async (req, res) => {
-  const user = norm(req.query.user);
+  const user = req.query.user?.toLowerCase();
   const amount = parseInt(req.query.amount);
+  const mode = (req.query.mode || "medium").toLowerCase();
 
-  if (!amount || amount <= 0) return res.send("invalid amount");
+  if (!amount || amount <= 0) return res.send("❌ invalid amount");
 
   const { data } = await supabase
     .from("users")
@@ -97,23 +98,42 @@ app.get("/api/gamble", async (req, res) => {
     .eq("username", user)
     .maybeSingle();
 
-  if (!data) return res.send("not registered");
-  if (data.balance < amount) return res.send("not enough coins");
+  if (!data) return res.send(`@${user} not registered`);
+  if (data.balance < amount) return res.send("❌ not enough coins");
 
-  const win = Math.random() < 0.5;
+  // 🎯 Risk system (NOT pure RNG anymore)
+  let winChance, multiplier;
 
-  const newBal = win
-    ? data.balance + amount
-    : data.balance - amount;
+  if (mode === "low") {
+    winChance = 0.7;
+    multiplier = 1.3;
+  } else if (mode === "high") {
+    winChance = 0.35;
+    multiplier = 2.2;
+  } else {
+    winChance = 0.5;
+    multiplier = 1.7;
+  }
+
+  const win = Math.random() < winChance;
+
+  let newBalance;
+
+  if (win) {
+    newBalance = data.balance + Math.floor(amount * (multiplier - 1));
+  } else {
+    newBalance = data.balance - amount;
+  }
 
   await supabase
     .from("users")
-    .update({ balance: newBal })
+    .update({ balance: newBalance })
     .eq("username", user);
 
-  res.send(win
-    ? `🎉 WIN +${amount}`
-    : `💀 LOSE -${amount}`
+  res.send(
+    win
+      ? `🎉 @${user} WON (${mode}) +${Math.floor(amount * (multiplier - 1))}`
+      : `💀 @${user} LOST (${mode}) -${amount}`
   );
 });
 
