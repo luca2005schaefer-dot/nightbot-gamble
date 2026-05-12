@@ -137,22 +137,31 @@ app.get("/api/hit", async (req, res) => {
 
   const sum = game.player_hand.reduce((a,b)=>a+b);
 
-  if (sum > 21) {
-    await supabase
-      .from("blackjack_games")
-      .update({ status: "lost" })
-      .eq("username", user);
+if (sum > 21) {
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", user)
+    .maybeSingle();
 
-    return res.send(`💀 BUST (${sum}) — you lost ${game.bet} coins`);
-  }
+  await supabase
+    .from("users")
+    .update({
+      balance: userRow.balance - game.bet
+    })
+    .eq("username", user);
 
   await supabase
     .from("blackjack_games")
-    .update({ player_hand: game.player_hand })
+    .update({
+      status: "lost"
+    })
     .eq("username", user);
 
-  res.send(`🃏 YOU: ${game.player_hand.join(",")} (${sum}) | !hit or !stand`);
-});
+  return res.send(
+    `💀 BUST (${sum}) — lost ${game.bet} coins`
+  );
+}
 
 
 app.get("/api/stand", async (req, res) => {
