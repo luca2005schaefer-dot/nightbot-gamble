@@ -131,37 +131,54 @@ app.get("/api/hit", async (req, res) => {
     .eq("username", user)
     .maybeSingle();
 
-  if (!game || game.status !== "active") return res.send("no active game");
+  if (!game || game.status !== "active") {
+    return res.send("no active game");
+  }
 
+  // draw new card
   game.player_hand.push(draw());
 
-  const sum = game.player_hand.reduce((a,b)=>a+b);
+  const sum = game.player_hand.reduce((a, b) => a + b);
 
-if (sum > 21) {
-  const { data: userRow } = await supabase
-    .from("users")
-    .select("*")
-    .eq("username", user)
-    .maybeSingle();
+  // player busts
+  if (sum > 21) {
+    const { data: userRow } = await supabase
+      .from("users")
+      .select("*")
+      .eq("username", user)
+      .maybeSingle();
 
-  await supabase
-    .from("users")
-    .update({
-      balance: userRow.balance - game.bet
-    })
-    .eq("username", user);
+    await supabase
+      .from("users")
+      .update({
+        balance: userRow.balance - game.bet
+      })
+      .eq("username", user);
 
+    await supabase
+      .from("blackjack_games")
+      .update({
+        status: "lost"
+      })
+      .eq("username", user);
+
+    return res.send(
+      `💀 BUST (${sum}) — lost ${game.bet} coins`
+    );
+  }
+
+  // save updated hand if player survives
   await supabase
     .from("blackjack_games")
     .update({
-      status: "lost"
+      player_hand: game.player_hand
     })
     .eq("username", user);
 
-  return res.send(
-    `💀 BUST (${sum}) — lost ${game.bet} coins`
+  res.send(
+    `🃏 YOU: ${game.player_hand.join(",")} (${sum}) | !hit or !stand`
   );
-}
+});
 
 
 app.get("/api/stand", async (req, res) => {
@@ -287,4 +304,3 @@ app.get("/api/help", (req, res) => {
 // ================= START =================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("running"));
-
